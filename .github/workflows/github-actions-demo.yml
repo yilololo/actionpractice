@@ -1,23 +1,30 @@
-# 基础镜像
-FROM golang:1.23.2-alpine AS builder
+name: Build and Push to ACR
 
-# 设置工作目录
-WORKDIR /app
+on:
+  push:
+    branches:
+      - main  # 在 main 分支推送代码时触发
 
-# 将代码复制到镜像中
-COPY . .
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
 
-# 下载依赖并编译应用
-RUN go mod init simple-go-app && \
-    go build -o app main.go
+    steps:
+      # 检出代码
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-# 创建运行时镜像
-FROM alpine:latest
-WORKDIR /root/
-COPY --from=builder /app/app .
+      # 登录到阿里云 ACR
+      - name: Log in to ACR
+        run: |
+          echo "${{ secrets.ACR_PASSWORD }}" | docker login --username "${{ secrets.ACR_USERNAME }}" --password-stdin "${{ secrets.ACR_REGISTRY }}"
 
-# 暴露服务端口
-EXPOSE 8932
+      # 构建 Docker 镜像
+      - name: Build Docker Image
+        run: |
+          docker build -t "${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_REPOSITORY }}:latest" .
 
-# 启动应用
-CMD ["./app"]
+      # 推送 Docker 镜像到 ACR
+      - name: Push Docker Image to ACR
+        run: |
+          docker push "${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_REPOSITORY }}:latest"
