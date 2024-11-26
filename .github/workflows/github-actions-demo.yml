@@ -1,32 +1,23 @@
-name: Build and Push Docker Image
+# 基础镜像
+FROM golang:1.23.2-alpine AS builder
 
-on:
-  push:
-    branches:
-      - main  # 触发条件，可以根据需要修改
+# 设置工作目录
+WORKDIR /app
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+# 将代码复制到镜像中
+COPY . .
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+# 下载依赖并编译应用
+RUN go mod init simple-go-app && \
+    go build -o app main.go
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+# 创建运行时镜像
+FROM alpine:latest
+WORKDIR /root/
+COPY --from=builder /app/app .
 
-      - name: Log in to ACR
-        uses: docker/login-action@v1
-        with:
-          registry: <your-acr-endpoint>  # 替换为你的 ACR 地址，例如: registry.cn-hangzhou.aliyuncs.com
-          username: ${{ secrets.ALIYUN_ACR_USERNAME }}  # 使用 GitHub Secrets 存储阿里云用户名
-          password: ${{ secrets.ALIYUN_ACR_PASSWORD }}  # 使用 GitHub Secrets 存储阿里云密码
+# 暴露服务端口
+EXPOSE 8932
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: ./deployment  # 指定 docker-compose 文件所在的目录
-          push: true
-          tags: <your-acr-endpoint>/<your-image-name>:${{ github.sha }}  # 替换为你的镜像名称
-          file: ./deployment/docker-compose.dev.yaml  # 指定 Dockerfile 的路径，如果使用 docker-compose.yml 文件构建
+# 启动应用
+CMD ["./app"]
